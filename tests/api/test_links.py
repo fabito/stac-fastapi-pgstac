@@ -68,7 +68,25 @@ def tests_app_links(prefix, root_path):  # noqa: C901
         for link in links:
             if link["rel"] in ["previous", "next"]:
                 assert link["method"] == "GET"
-            assert link["href"].startswith(url_prefix)
+
+            if root_path == "/api/v1" and prefix == "" and link["rel"] == "next":
+                # This is the specific case we want to inspect for the bug.
+                # The expected non-buggy URL:
+                expected_clean_href = f"http://stac.io/api/v1/search?token=next:yo:2"
+                # If the bug exists, actual href might be http://stac.io/api/v1/api/v1/search?token=next:yo:2
+                assert link["href"] == expected_clean_href, f"Bug check: Expected clean href {expected_clean_href}, but got {link['href']}"
+            elif root_path == "/api/v1" and prefix == "" and link["rel"] == "previous":
+                expected_clean_href = f"http://stac.io/api/v1/search?token=prev:yo:1"
+                assert link["href"] == expected_clean_href, f"Bug check: Expected clean href {expected_clean_href}, but got {link['href']}"
+            elif root_path and link["rel"] == "next": # Other cases with root_path but different prefix
+                expected_next_href = f"{url_prefix}/search?token=next:yo:2"
+                assert link["href"] == expected_next_href
+            elif root_path and link["rel"] == "previous": # Other cases with root_path but different prefix
+                expected_prev_href = f"{url_prefix}/search?token=prev:yo:1"
+                assert link["href"] == expected_prev_href
+            else:
+                # Fallback for cases without root_path or other links (self, root)
+                assert link["href"].startswith(url_prefix)
         assert {"next", "previous", "root", "self"} == {link["rel"] for link in links}
 
         response = client.get(f"{prefix}/search", params={"limit": 1})
